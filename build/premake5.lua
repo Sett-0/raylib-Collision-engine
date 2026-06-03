@@ -1,4 +1,7 @@
-workspace ("Testing raylib")
+workplaceName = "Testing raylib"
+projectName   = "raylib-start"
+
+workspace (workplaceName)
 	configurations { "Debug", "Release" }
 	platforms { "x64" }
 	location "../"
@@ -12,7 +15,7 @@ workspace ("Testing raylib")
 		optimize "On"
 	filter {}
 	
-project ("raylib-start")
+project (projectName)
 	kind "ConsoleApp"
 	language "C++"
 	cppdialect "C++17"
@@ -21,3 +24,14 @@ project ("raylib-start")
 	includedirs { "../include" }
 	libdirs { "../lib" }
 	links { "raylib", "gdi32", "winmm" }
+
+-- Creating 'make run' command
+local wks_gen = premake.modules.gmake.generate_workspace
+premake.modules.gmake.generate_workspace = function(wks)
+	-- Do make as usual
+    wks_gen(wks)
+    
+	-- Add run command 
+    premake.w("\nrun: all")
+    premake.w("@bin/$(if $(findstring release,$(config)),Release,Debug)/" .. projectName .. ".exe")
+end
