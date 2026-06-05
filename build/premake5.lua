@@ -20,7 +20,7 @@ project (projectName)
 	language "C++"
 	cppdialect "C++17"
 	
-	files { "../hello_world.cpp" }
+	files { "../simple_balls.cpp" }
 	includedirs { "../include" }
 	libdirs { "../lib" }
 	links { "raylib", "gdi32", "winmm" }
