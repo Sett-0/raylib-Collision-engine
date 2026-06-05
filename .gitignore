@@ -2,3 +2,7 @@ Makefile
 *.make
 bin/
 obj/
+GPATH
+GTAGS
+GRTAGS
+NppGTags.cfg
