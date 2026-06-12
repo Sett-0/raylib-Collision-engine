@@ -4,6 +4,7 @@
 #include "raylib.h"
 #include "raymath.h"
 
+#define BALL_DENSITY 1.0f
 #define GRAVITY 1
 #define DRAG 0.9f
 #define WIDTH  800
@@ -14,22 +15,23 @@
 
 struct BallInitData {
 	float R;
+	float mass;
 	Vector2 coord;
 	Vector2 speed;
 	Color color;
-	Rectangle collider;
 };
 
 class Ball {
 public:
 	float R;
+	float mass;
 	Vector2 coord;
 	Vector2 speed;
 	Color color; 
 
 	Ball(float r, Vector2 cd, Vector2 sp, Color clr) : R(r), coord(cd), speed(sp), color(clr) {
-		collider = { cd.x - R, cd.y - R, cd.x + R, cd.y + R };
-		ball = BallInitData { r, cd, sp, clr };
+		mass = BALL_DENSITY * PI * r*r;
+		ball = BallInitData { r, mass, cd, sp, clr };
 	}
 	
 	Ball() = default;
@@ -49,9 +51,7 @@ public:
 	}
 
 private:
-	Rectangle collider;
 	BallInitData ball;
-	
 };
 
 struct CollisionGrid {
@@ -204,9 +204,10 @@ int main() {
 			for (size_t y = 1; y < GRIDSIZE_Y; y++) {
 				Vector2 startPosRow = { 0,     HEIGHT / GRIDSIZE_Y * (float)y };
 				Vector2 endPosRow   = { WIDTH, HEIGHT / GRIDSIZE_Y * (float)y };
+				DrawLineDashed(startPosRow, endPosRow, 5, 5, LIGHTGRAY);
+				
 				Vector2 startPosCol = { WIDTH / GRIDSIZE_X * (float)x, 0      };
 				Vector2 endPosCol   = { WIDTH / GRIDSIZE_X * (float)x, HEIGHT };
-				DrawLineDashed(startPosRow, endPosRow, 5, 5, LIGHTGRAY);
 				DrawLineDashed(startPosCol, endPosCol, 5, 5, LIGHTGRAY);
 			}
 		}
@@ -243,15 +244,15 @@ int main() {
 			// }
 		}
 		
-		DrawText(TextFormat(" x: %s%f", balls[0].coord.x >= 0 ? " " : "", balls[0].coord.x), 20, 20,  30, BLACK);
-		DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20, 50,  30, BLACK);
-		DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20, 80,  30, BLACK);
-		DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20, 110, 30, BLACK);
-		DrawText(TextFormat("Color: %d %d %d", balls[0].color.r, balls[0].color.g, balls[0].color.b), 20, 140, 30, BLACK);
+		DrawText(TextFormat(" x: %s%f", balls[0].coord.x >= 0 ? " " : "", balls[0].coord.x), 20,           20,  30, BLACK);
+		DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20,           50,  30, BLACK);
+		DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20,           80,  30, BLACK);
+		DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20,           110, 30, BLACK);
 		DrawText(TextFormat(" x: %s%f", balls[1].coord.x >= 0 ? " " : "", balls[1].coord.x), WIDTH-220-20, 20,  30, BLACK);
 		DrawText(TextFormat(" y: %s%f", balls[1].coord.y >= 0 ? " " : "", balls[1].coord.y), WIDTH-220-20, 50,  30, BLACK);
 		DrawText(TextFormat("dx: %s%f", balls[1].speed.x >= 0 ? " " : "", balls[1].speed.x), WIDTH-220-20, 80,  30, BLACK);
 		DrawText(TextFormat("dy: %s%f", balls[1].speed.y >= 0 ? " " : "", balls[1].speed.y), WIDTH-220-20, 110, 30, BLACK);
+		DrawText(TextFormat("Color: %d %d %d", balls[0].color.r, balls[0].color.g, balls[0].color.b), 20,           140, 30, BLACK);
 		DrawText(TextFormat("Color: %d %d %d", balls[1].color.r, balls[1].color.g, balls[1].color.b), WIDTH-220-20, 140, 30, BLACK);
 		EndDrawing();
 	}
