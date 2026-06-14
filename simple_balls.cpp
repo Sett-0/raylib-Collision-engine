@@ -4,19 +4,25 @@
 #include "raylib.h"
 #include "raymath.h"
 
-#define BALL_DENSITY 0.001f
-#define GRAVITY 0.0f
-#define WIDTH  800
+#define FPS 60
+#define WIDTH  1600
 #define HEIGHT 800
-#define GRIDSIZE_X 16
-#define GRIDSIZE_Y 16
-#define GRIDWIDTH  (WIDTH  / GRIDSIZE_X)
-#define GRIDHEIGHT (HEIGHT / GRIDSIZE_Y)
+#define GRIDWIDTH  400
+#define GRIDHEIGHT 400
+#define GRIDSIZE_X (WIDTH  / GRIDWIDTH)
+#define GRIDSIZE_Y (HEIGHT / GRIDHEIGHT)
 #define ITERATIONS 4
+
+#define NUM_BALLS 15
+#define MIN_R 20
+#define MAX_R 200
+
+#define GRAVITY 0.0f
+#define BALL_DENSITY 0.001f
 #define SLOP 0.05f
 #define K_SLOP (float)(1.0f / std::sqrt(ITERATIONS))
-#define RESTING_THRESHOLD (GRAVITY * 1.5f)
 #define RESTITUTION 1.0f
+#define RESTING_THRESHOLD (GRAVITY * 1.5f)
 
 struct BallInitData {
 	Vector2 coord;
@@ -70,6 +76,13 @@ private:
 
 struct CollisionGrid {
 	std::vector<Ball*> grid[GRIDSIZE_X][GRIDSIZE_Y];
+	CollisionGrid() {
+		size_t averageR = (MIN_R + MAX_R) / 2;
+		size_t reserveSize = (size_t)((GRIDWIDTH * GRIDHEIGHT) / ((2*averageR) * (2*averageR)));
+		for (size_t x = 0; x < GRIDSIZE_X; x++)
+			for (size_t y = 0; y < GRIDSIZE_Y; y++)
+				grid[x][y].reserve(reserveSize);
+	}
 };
 
 Ball makeRandomBall(const std::vector<Ball>& balls) {
@@ -82,8 +95,8 @@ Ball makeRandomBall(const std::vector<Ball>& balls) {
         overlapping = false;
         attempts++;
 
-        R = GetRandomValue(10, 100);
-        coord = { (float)GetRandomValue(R+1, WIDTH-R-1), (float)GetRandomValue(R+1, HEIGHT/2) };
+        R = GetRandomValue(MIN_R, MAX_R);
+        coord = { (float)GetRandomValue(R+1, WIDTH-R-1), (float)GetRandomValue(R+1, HEIGHT-R-1) };
         for (const auto &ball : balls)
 			if (CheckCollisionCircles(coord, R, ball.coord, ball.R)) {
 				overlapping = true;
@@ -96,8 +109,8 @@ Ball makeRandomBall(const std::vector<Ball>& balls) {
 		}
     } while (overlapping);
 
-    float dx = GetRandomValue(-20, 20);
-    float dy = GetRandomValue(-200, 200) / 20.0f;
+    float dx = GetRandomValue(-15, 15);
+    float dy = GetRandomValue(-150, 150) / 15.0f;
     Vector2 speed = { dx, dy };
 	
     unsigned char r = GetRandomValue(0, 255);
@@ -264,7 +277,7 @@ void resolveCollisions(CollisionGrid &cGrid) {
 
 int main() {
 	InitWindow(WIDTH, HEIGHT, "raylib Balling");
-	SetTargetFPS(60);
+	SetTargetFPS(FPS);
 	SetRandomSeed(std::time(0));
 	CollisionGrid cGrid{};
 	
@@ -274,17 +287,16 @@ int main() {
 	Ball ball4 = Ball({ WIDTH-101, 101        }, { -10, 0 }, 50,  PURPLE);
 	Ball ball5 = Ball({ 300,       300        }, {   0, 0 }, 75,  GRAY, true);
 	std::vector<Ball> balls = { ball1, ball2, ball3, ball4, ball5 };
-	balls = makeRandomBalls(15);
-	for (auto &ball : balls)
-		ball.showParentGridCell = true;
+	balls = makeRandomBalls(NUM_BALLS);
+	//for (auto &ball : balls) ball.showParentGridCell = true;
 	
 	while (!WindowShouldClose()) {
 		BeginDrawing();
 		ClearBackground(RAYWHITE);
 		
 		// Drawing the collison grid
-		for (size_t x = 1; x < GRIDSIZE_X; x++) {
-			for (size_t y = 1; y < GRIDSIZE_Y; y++) {
+		for (size_t x = 1; x <= GRIDSIZE_X; x++) {
+			for (size_t y = 1; y <= GRIDSIZE_Y; y++) {
 				Vector2 rowStart = { 0,     GRIDHEIGHT * (float)y };
 				Vector2 rowEnd   = { WIDTH, GRIDHEIGHT * (float)y };
 				DrawLineDashed(rowStart, rowEnd, 5, 5, LIGHTGRAY);
@@ -306,7 +318,11 @@ int main() {
 			
 			// Updating ball
 			ball.speed.y += ball.isImmovable ? 0.0f : GRAVITY;
-			ball.coord = Vector2Clamp(Vector2Add(ball.coord, ball.speed), { ball.R, ball.R }, { float(WIDTH-ball.R), float(HEIGHT-ball.R) });
+			ball.coord = Vector2Clamp(
+				Vector2Add(ball.coord, ball.speed), 
+				{ ball.R, ball.R }, 
+				{ float(WIDTH-ball.R), float(HEIGHT-ball.R) }
+			);
 		}
 		
 		// Collision handling
@@ -317,13 +333,13 @@ int main() {
 		// Drawing balls
 		for (Ball &ball : balls) {
 			if (ball.showParentGridCell) {
-				for (int x = 0; x < GRIDSIZE_X; x++) {
-					for (int y = 0; y < GRIDSIZE_Y; y++) {
+				for (size_t x = 0; x < GRIDSIZE_X; x++) {
+					for (size_t y = 0; y < GRIDSIZE_Y; y++) {
 						const auto &bucket = cGrid.grid[x][y];
 						for (const auto &el : bucket) {
 							if (&ball == el) {
-								int w   = GRIDWIDTH;
-								int h   = GRIDHEIGHT;
+								int   w = GRIDWIDTH;
+								int   h = GRIDHEIGHT;
 								Color c = (c = ball.color, c.a = 64, c);
 								DrawRectangle(x*w, y*h, w, h, c);
 							}
@@ -338,13 +354,11 @@ int main() {
 		DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20,           50,  30, BLACK);
 		DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20,           80,  30, BLACK);
 		DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20,           110, 30, BLACK);
-		DrawText(TextFormat("Color: %d %d %d", balls[0].color.r, balls[0].color.g, balls[0].color.b), 20,           140, 30, BLACK);
 		
 		// DrawText(TextFormat(" x: %s%f", balls[1].coord.x >= 0 ? " " : "", balls[1].coord.x), WIDTH-220-20, 20,  30, BLACK);
 		// DrawText(TextFormat(" y: %s%f", balls[1].coord.y >= 0 ? " " : "", balls[1].coord.y), WIDTH-220-20, 50,  30, BLACK);
 		// DrawText(TextFormat("dx: %s%f", balls[1].speed.x >= 0 ? " " : "", balls[1].speed.x), WIDTH-220-20, 80,  30, BLACK);
 		// DrawText(TextFormat("dy: %s%f", balls[1].speed.y >= 0 ? " " : "", balls[1].speed.y), WIDTH-220-20, 110, 30, BLACK);
-		// DrawText(TextFormat("Color: %d %d %d", balls[1].color.r, balls[1].color.g, balls[1].color.b), WIDTH-220-20, 140, 30, BLACK);
 		EndDrawing();
 	}
 	CloseWindow();
