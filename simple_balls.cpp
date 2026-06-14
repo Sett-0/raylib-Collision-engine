@@ -274,7 +274,7 @@ int main() {
 	Ball ball4 = Ball({ WIDTH-101, 101        }, { -10, 0 }, 50,  PURPLE);
 	Ball ball5 = Ball({ 300,       300        }, {   0, 0 }, 75,  GRAY, true);
 	std::vector<Ball> balls = { ball1, ball2, ball3, ball4, ball5 };
-	balls = makeRandomBalls(5);
+	balls = makeRandomBalls(15);
 	for (auto &ball : balls)
 		ball.showParentGridCell = true;
 	
@@ -306,7 +306,7 @@ int main() {
 			
 			// Updating ball
 			ball.speed.y += ball.isImmovable ? 0.0f : GRAVITY;
-			ball.coord = Vector2Clamp(Vector2Add(ball.coord, ball.speed), { 0.0f, 0.0f }, { float(WIDTH-ball.R-1), float(HEIGHT-ball.R-1) });
+			ball.coord = Vector2Clamp(Vector2Add(ball.coord, ball.speed), { ball.R, ball.R }, { float(WIDTH-ball.R), float(HEIGHT-ball.R) });
 		}
 		
 		// Collision handling
