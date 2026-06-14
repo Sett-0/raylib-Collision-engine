@@ -5,16 +5,18 @@
 #include "raymath.h"
 
 #define BALL_DENSITY 0.001f
-#define GRAVITY 0.2f
+#define GRAVITY 0.0f
 #define WIDTH  800
 #define HEIGHT 800
-#define GRIDSIZE_X 4
-#define GRIDSIZE_Y 4
+#define GRIDSIZE_X 16
+#define GRIDSIZE_Y 16
+#define GRIDWIDTH  (WIDTH  / GRIDSIZE_X)
+#define GRIDHEIGHT (HEIGHT / GRIDSIZE_Y)
 #define ITERATIONS 4
 #define SLOP 0.05f
 #define K_SLOP (float)(1.0f / std::sqrt(ITERATIONS))
 #define RESTING_THRESHOLD (GRAVITY * 1.5f)
-#define RESTITUTION 0.5f
+#define RESTITUTION 1.0f
 
 struct BallInitData {
 	Vector2 coord;
@@ -33,9 +35,16 @@ public:
 	float mass;
 	Color color; 
 	bool isImmovable;
+	bool showParentGridCell;
 
-	Ball(Vector2 cd, Vector2 sp, float r, Color clr, bool immovable=false) : R(r), coord(cd), speed(sp), color(clr), isImmovable(immovable) {
+	Ball(Vector2 cd, Vector2 sp, float r, Color clr, bool immovable=false, bool showCell=false) {
+		R = r;
+		coord = cd;
+		speed = sp;
+		color = clr;
+		isImmovable = immovable;
 		mass = isImmovable ? 0.0f : (BALL_DENSITY * PI * r*r);
+		showParentGridCell = showCell;
 		ball = BallInitData { cd, sp, r, mass, clr, immovable };
 	}
 	
@@ -88,7 +97,7 @@ Ball makeRandomBall(const std::vector<Ball>& balls) {
     } while (overlapping);
 
     float dx = GetRandomValue(-20, 20);
-    float dy = GetRandomValue(-400, 400) / 400.0f;
+    float dy = GetRandomValue(-200, 200) / 20.0f;
     Vector2 speed = { dx, dy };
 	
     unsigned char r = GetRandomValue(0, 255);
@@ -113,41 +122,24 @@ std::vector<Ball> makeRandomBalls(const int N) {
 	return balls;
 }
 
-void clearGrid(CollisionGrid &collisionGrid) {
+void clearGrid(CollisionGrid &cGrid) {
 	for (size_t x = 0; x < GRIDSIZE_X; x++)
 		for (size_t y = 0; y < GRIDSIZE_Y; y++)
-			collisionGrid.grid[x][y].clear();
+			cGrid.grid[x][y].clear();
 }
 
-void populateGrid(CollisionGrid &collisionGrid, std::vector<Ball> &balls) {
+void populateGrid(CollisionGrid &cGrid, std::vector<Ball> &balls) {
 	for (Ball &ball : balls) {
-		int cellX = Clamp(ball.coord.x / (WIDTH  / GRIDSIZE_X), 0, GRIDSIZE_X-1);
-		int cellY = Clamp(ball.coord.y / (HEIGHT / GRIDSIZE_Y), 0, GRIDSIZE_Y-1);
-		collisionGrid.grid[cellX][cellY].push_back(&ball);
+		size_t lCell = (size_t)Clamp((ball.coord.x - ball.R) / GRIDWIDTH,  0, GRIDSIZE_X-1);
+		size_t rCell = (size_t)Clamp((ball.coord.x + ball.R) / GRIDWIDTH,  0, GRIDSIZE_X-1);
+		size_t tCell = (size_t)Clamp((ball.coord.y - ball.R) / GRIDHEIGHT, 0, GRIDSIZE_Y-1);
+		size_t bCell = (size_t)Clamp((ball.coord.y + ball.R) / GRIDHEIGHT, 0, GRIDSIZE_Y-1);
 		
-		// TODO: think about the case when R > 2 * (WIDTH  / GRIDSIZE_X)
-		// i.e. if the ball is larger than two cells.
-		// Checking if the ball touches neighboring cells
-		int lCell = Clamp((ball.coord.x - ball.R) / (WIDTH  / GRIDSIZE_X), 0, GRIDSIZE_X-1);
-		int rCell = Clamp((ball.coord.x + ball.R) / (WIDTH  / GRIDSIZE_X), 0, GRIDSIZE_X-1);
-		int tCell = Clamp((ball.coord.y - ball.R) / (HEIGHT / GRIDSIZE_Y), 0, GRIDSIZE_Y-1);
-		int bCell = Clamp((ball.coord.y + ball.R) / (HEIGHT / GRIDSIZE_Y), 0, GRIDSIZE_Y-1);
-		// Top-left
-		if (lCell >= 0 && tCell >= 0 && lCell < cellX && tCell < cellY) { collisionGrid.grid[lCell][tCell].push_back(&ball); }
-		// Top
-		if (tCell >= 0 && tCell < cellY) { collisionGrid.grid[cellX][tCell].push_back(&ball); }
-		// Top-right
-		if (rCell < GRIDSIZE_X && tCell >= 0 && rCell > cellX && tCell < cellY) { collisionGrid.grid[rCell][tCell].push_back(&ball); }
-		// Right
-		if (rCell < GRIDSIZE_X && rCell > cellX) { collisionGrid.grid[rCell][cellY].push_back(&ball); }
-		// Bottom-right
-		if (rCell < GRIDSIZE_X && bCell < GRIDSIZE_Y && rCell > cellX && bCell > cellY) { collisionGrid.grid[rCell][bCell].push_back(&ball); }
-		// Bottom
-		if (bCell < GRIDSIZE_Y && bCell > cellY) { collisionGrid.grid[cellX][bCell].push_back(&ball); }
-		// Bottom-left
-		if (lCell >= 0 && bCell < GRIDSIZE_Y && lCell < cellX && bCell > cellY) { collisionGrid.grid[lCell][bCell].push_back(&ball); }
-		// Left
-		if (lCell >= 0 && lCell < cellX) { collisionGrid.grid[lCell][cellY].push_back(&ball); }
+		for (size_t cellX = lCell; cellX <= rCell; cellX++) {
+			for (size_t cellY = tCell; cellY <= bCell; cellY++) {
+				cGrid.grid[cellX][cellY].push_back(&ball);
+			}
+		}
 	}
 }
 
@@ -216,7 +208,7 @@ void onCollision(Ball *b1, Ball *b2) {
 	b2->speed = Vector2Add     (b2->speed, Vector2Scale(normal, invMass2 * impulseChange));
 }
 
-void resolveCollisions(CollisionGrid &collisionGrid) {
+void resolveCollisions(CollisionGrid &cGrid) {
 	// Window bounds
 	Vector2 lBound[] = { { 0,     0      }, { 0,     HEIGHT } };
 	Vector2 rBound[] = { { WIDTH, 0      }, { WIDTH, HEIGHT } };
@@ -225,7 +217,7 @@ void resolveCollisions(CollisionGrid &collisionGrid) {
 	for (size_t iter = 0; iter < ITERATIONS; iter++) {
 		for (size_t x = 0; x < GRIDSIZE_X; x++) {
 			for (size_t y = 0; y < GRIDSIZE_Y; y++) {
-				auto &bucket = collisionGrid.grid[x][y];
+				auto &bucket = cGrid.grid[x][y];
 				for (size_t i = 0; i < bucket.size(); i++) {
 					// Collision type: Ball : lBound
 					if (x == 0) {
@@ -233,7 +225,7 @@ void resolveCollisions(CollisionGrid &collisionGrid) {
 							onCollision(bucket[i], { 0.0f, bucket[i]->coord.y });
 						}
 					}
-					
+
 					// Collision type: Ball : rBound
 					if (x == GRIDSIZE_X-1) {
 						if (CheckCollisionCircleLine(bucket[i]->coord, bucket[i]->R, rBound[0], rBound[1])) {
@@ -274,7 +266,7 @@ int main() {
 	InitWindow(WIDTH, HEIGHT, "raylib Balling");
 	SetTargetFPS(60);
 	SetRandomSeed(std::time(0));
-	CollisionGrid grid{};
+	CollisionGrid cGrid{};
 	
 	Ball ball1 = Ball({ WIDTH/2,   HEIGHT/2   }, {   0, 0 }, 100, RED);
 	Ball ball2 = Ball({ WIDTH/2,   HEIGHT-101 }, {   0, 0 }, 100, BLUE);
@@ -282,7 +274,9 @@ int main() {
 	Ball ball4 = Ball({ WIDTH-101, 101        }, { -10, 0 }, 50,  PURPLE);
 	Ball ball5 = Ball({ 300,       300        }, {   0, 0 }, 75,  GRAY, true);
 	std::vector<Ball> balls = { ball1, ball2, ball3, ball4, ball5 };
-	//balls = makeRandomBalls(100);
+	balls = makeRandomBalls(5);
+	for (auto &ball : balls)
+		ball.showParentGridCell = true;
 	
 	while (!WindowShouldClose()) {
 		BeginDrawing();
@@ -291,12 +285,12 @@ int main() {
 		// Drawing the collison grid
 		for (size_t x = 1; x < GRIDSIZE_X; x++) {
 			for (size_t y = 1; y < GRIDSIZE_Y; y++) {
-				Vector2 rowStart = { 0,     HEIGHT / GRIDSIZE_Y * (float)y };
-				Vector2 rowEnd   = { WIDTH, HEIGHT / GRIDSIZE_Y * (float)y };
+				Vector2 rowStart = { 0,     GRIDHEIGHT * (float)y };
+				Vector2 rowEnd   = { WIDTH, GRIDHEIGHT * (float)y };
 				DrawLineDashed(rowStart, rowEnd, 5, 5, LIGHTGRAY);
 				
-				Vector2 colStart = { WIDTH / GRIDSIZE_X * (float)x, 0      };
-				Vector2 colEnd   = { WIDTH / GRIDSIZE_X * (float)x, HEIGHT };
+				Vector2 colStart = { GRIDWIDTH * (float)x, 0      };
+				Vector2 colEnd   = { GRIDWIDTH * (float)x, HEIGHT };
 				DrawLineDashed(colStart, colEnd, 5, 5, LIGHTGRAY);
 			}
 		}
@@ -312,17 +306,31 @@ int main() {
 			
 			// Updating ball
 			ball.speed.y += ball.isImmovable ? 0.0f : GRAVITY;
-			ball.coord = Vector2Clamp(Vector2Add(ball.coord, ball.speed), { 0.0f, 0.0f }, { float(WIDTH-ball.R), float(HEIGHT-ball.R) });
-			
+			ball.coord = Vector2Clamp(Vector2Add(ball.coord, ball.speed), { 0.0f, 0.0f }, { float(WIDTH-ball.R-1), float(HEIGHT-ball.R-1) });
 		}
 		
 		// Collision handling
-		clearGrid(grid);
-		populateGrid(grid, balls);
-		resolveCollisions(grid);
+		clearGrid(cGrid);
+		populateGrid(cGrid, balls);
+		resolveCollisions(cGrid);
 		
 		// Drawing balls
 		for (Ball &ball : balls) {
+			if (ball.showParentGridCell) {
+				for (int x = 0; x < GRIDSIZE_X; x++) {
+					for (int y = 0; y < GRIDSIZE_Y; y++) {
+						const auto &bucket = cGrid.grid[x][y];
+						for (const auto &el : bucket) {
+							if (&ball == el) {
+								int w   = GRIDWIDTH;
+								int h   = GRIDHEIGHT;
+								Color c = (c = ball.color, c.a = 64, c);
+								DrawRectangle(x*w, y*h, w, h, c);
+							}
+						}
+					}
+				}
+			}
 			DrawCircleV(ball.coord, ball.R, ball.color);
 		}
 		
@@ -332,11 +340,11 @@ int main() {
 		DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20,           110, 30, BLACK);
 		DrawText(TextFormat("Color: %d %d %d", balls[0].color.r, balls[0].color.g, balls[0].color.b), 20,           140, 30, BLACK);
 		
-		DrawText(TextFormat(" x: %s%f", balls[1].coord.x >= 0 ? " " : "", balls[1].coord.x), WIDTH-220-20, 20,  30, BLACK);
-		DrawText(TextFormat(" y: %s%f", balls[1].coord.y >= 0 ? " " : "", balls[1].coord.y), WIDTH-220-20, 50,  30, BLACK);
-		DrawText(TextFormat("dx: %s%f", balls[1].speed.x >= 0 ? " " : "", balls[1].speed.x), WIDTH-220-20, 80,  30, BLACK);
-		DrawText(TextFormat("dy: %s%f", balls[1].speed.y >= 0 ? " " : "", balls[1].speed.y), WIDTH-220-20, 110, 30, BLACK);
-		DrawText(TextFormat("Color: %d %d %d", balls[1].color.r, balls[1].color.g, balls[1].color.b), WIDTH-220-20, 140, 30, BLACK);
+		// DrawText(TextFormat(" x: %s%f", balls[1].coord.x >= 0 ? " " : "", balls[1].coord.x), WIDTH-220-20, 20,  30, BLACK);
+		// DrawText(TextFormat(" y: %s%f", balls[1].coord.y >= 0 ? " " : "", balls[1].coord.y), WIDTH-220-20, 50,  30, BLACK);
+		// DrawText(TextFormat("dx: %s%f", balls[1].speed.x >= 0 ? " " : "", balls[1].speed.x), WIDTH-220-20, 80,  30, BLACK);
+		// DrawText(TextFormat("dy: %s%f", balls[1].speed.y >= 0 ? " " : "", balls[1].speed.y), WIDTH-220-20, 110, 30, BLACK);
+		// DrawText(TextFormat("Color: %d %d %d", balls[1].color.r, balls[1].color.g, balls[1].color.b), WIDTH-220-20, 140, 30, BLACK);
 		EndDrawing();
 	}
 	CloseWindow();
