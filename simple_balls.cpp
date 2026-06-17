@@ -350,15 +350,10 @@ int main() {
 			DrawCircleV(ball.coord, ball.R, ball.color);
 		}
 		
-		DrawText(TextFormat(" x: %s%f", balls[0].coord.x >= 0 ? " " : "", balls[0].coord.x), 20,           20,  30, BLACK);
-		DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20,           50,  30, BLACK);
-		DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20,           80,  30, BLACK);
-		DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20,           110, 30, BLACK);
-		
-		// DrawText(TextFormat(" x: %s%f", balls[1].coord.x >= 0 ? " " : "", balls[1].coord.x), WIDTH-220-20, 20,  30, BLACK);
-		// DrawText(TextFormat(" y: %s%f", balls[1].coord.y >= 0 ? " " : "", balls[1].coord.y), WIDTH-220-20, 50,  30, BLACK);
-		// DrawText(TextFormat("dx: %s%f", balls[1].speed.x >= 0 ? " " : "", balls[1].speed.x), WIDTH-220-20, 80,  30, BLACK);
-		// DrawText(TextFormat("dy: %s%f", balls[1].speed.y >= 0 ? " " : "", balls[1].speed.y), WIDTH-220-20, 110, 30, BLACK);
+		// DrawText(TextFormat(" x: %s%f", balls[0].coord.x >= 0 ? " " : "", balls[0].coord.x), 20,           20,  30, BLACK);
+		// DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20,           50,  30, BLACK);
+		// DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20,           80,  30, BLACK);
+		// DrawText(TextFormat("dy: %s%f", balls[0].speed.y >= 0 ? " " : "", balls[0].speed.y), 20,           110, 30, BLACK);
 		EndDrawing();
 	}
 	CloseWindow();
