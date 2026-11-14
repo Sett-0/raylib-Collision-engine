@@ -1,5 +1,5 @@
 workplaceName = "Testing-raylib"
-projectName   = "I-am-ballin-it"
+projectName   = "Mouse-ball"
 
 workspace (workplaceName)
 	configurations { "Debug", "Release" }

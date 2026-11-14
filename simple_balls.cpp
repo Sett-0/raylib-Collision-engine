@@ -4,25 +4,28 @@
 #include "raylib.h"
 #include "raymath.h"
 
+#define NUM_BALLS 2000
+#define MIN_R 10
+#define MAX_R 20
+
 #define FPS 60
 #define WIDTH  1600
 #define HEIGHT 800
-#define GRIDWIDTH  400
-#define GRIDHEIGHT 400
+#define GRIDWIDTH  (4 * MAX_R)
+#define GRIDHEIGHT (4 * MAX_R)
 #define GRIDSIZE_X (WIDTH  / GRIDWIDTH)
 #define GRIDSIZE_Y (HEIGHT / GRIDHEIGHT)
-#define ITERATIONS 4
 
-#define NUM_BALLS 15
-#define MIN_R 20
-#define MAX_R 200
-
-#define GRAVITY 0.0f
+#define GRAVITY 1.0f
 #define BALL_DENSITY 0.001f
-#define SLOP 0.05f
-#define K_SLOP (float)(1.0f / std::sqrt(ITERATIONS))
-#define RESTITUTION 1.0f
-#define RESTING_THRESHOLD (GRAVITY * 1.5f)
+#define ITERATIONS 8
+#define SUB_STEP 8
+#define DELTA_TIME (1.0f / SUB_STEP)
+#define SLOP 0.01f
+#define K_SLOP 0.6f
+#define RESTITUTION 0.5f
+#define VISCOSITY 0.002f
+#define RESTING_THRESHOLD ((GRAVITY / SUB_STEP) * 1.5f)
 
 struct BallInitData {
 	Vector2 coord;
@@ -159,6 +162,7 @@ void populateGrid(CollisionGrid &cGrid, std::vector<Ball> &balls) {
 void onCollision(Ball *b, Vector2 point) {
 	Vector2 dist   = Vector2Subtract(point, b->coord);
 	float distLen  = Vector2Length(dist);
+	if (distLen < 1e-6f) return;
 	float pen      = b->R - distLen;
 	Vector2 normal = Vector2Scale(dist, 1.0f / distLen);
 	
@@ -189,6 +193,7 @@ void onCollision(Ball *b1, Ball *b2) {
 	float maxDist  = b1->R + b2->R;
 	Vector2 dist   = Vector2Subtract(b2->coord, b1->coord);
 	float distLen  = Vector2Length(dist);
+	if (distLen < 1e-6f) return;
 	float pen      = maxDist - distLen;
 	Vector2 normal = Vector2Scale(dist, 1.0f / distLen);
 	
@@ -226,7 +231,8 @@ void resolveCollisions(CollisionGrid &cGrid) {
 	Vector2 lBound[] = { { 0,     0      }, { 0,     HEIGHT } };
 	Vector2 rBound[] = { { WIDTH, 0      }, { WIDTH, HEIGHT } };
 	Vector2 tBound[] = { { 0,     0      }, { WIDTH, 0      } };
-	Vector2 bBound[] = { { 0,     HEIGHT }, { WIDTH, HEIGHT } };			
+	Vector2 bBound[] = { { 0,     HEIGHT }, { WIDTH, HEIGHT } };
+	
 	for (size_t iter = 0; iter < ITERATIONS; iter++) {
 		for (size_t x = 0; x < GRIDSIZE_X; x++) {
 			for (size_t y = 0; y < GRIDSIZE_Y; y++) {
@@ -276,7 +282,7 @@ void resolveCollisions(CollisionGrid &cGrid) {
 }
 
 int main() {
-	InitWindow(WIDTH, HEIGHT, "raylib Balling");
+	InitWindow(WIDTH, HEIGHT, "Mouse ball");
 	SetTargetFPS(FPS);
 	SetRandomSeed(std::time(0));
 	CollisionGrid cGrid{};
@@ -307,28 +313,28 @@ int main() {
 			}
 		}
 		
-		for (Ball &ball : balls) {
-			// Reset balls option
-			if (IsKeyPressed(KEY_R)) {
-				for (Ball &ball : balls) {
-					ball.resetBall();
-				}
-				continue;
+		// Reset balls option
+		if (IsKeyPressed(KEY_R)) {
+			for (Ball &ball : balls) {
+				ball.resetBall();
 			}
+		}
 			
-			// Updating ball
-			ball.speed.y += ball.isImmovable ? 0.0f : GRAVITY;
-			ball.coord = Vector2Clamp(
-				Vector2Add(ball.coord, ball.speed), 
-				{ ball.R, ball.R }, 
-				{ float(WIDTH-ball.R), float(HEIGHT-ball.R) }
-			);
+		// Updating ball
+		for (size_t step = 0; step < SUB_STEP; step++) {
+			for (Ball &ball : balls) {
+				if (ball.isImmovable) continue;
+				ball.speed.y += GRAVITY * DELTA_TIME;
+				ball.speed = Vector2Scale(ball.speed, 1.0f - VISCOSITY);
+				ball.coord = Vector2Add(ball.coord, Vector2Scale(ball.speed, DELTA_TIME));
+			}
+		
+			// Collision handling
+			clearGrid(cGrid);
+			populateGrid(cGrid, balls);
+			resolveCollisions(cGrid);
 		}
 		
-		// Collision handling
-		clearGrid(cGrid);
-		populateGrid(cGrid, balls);
-		resolveCollisions(cGrid);
 		
 		// Drawing balls
 		for (Ball &ball : balls) {
@@ -350,6 +356,7 @@ int main() {
 			DrawCircleV(ball.coord, ball.R, ball.color);
 		}
 		
+		DrawText(TextFormat("%d", GetFPS()), 20, 20, 50, ORANGE);
 		// DrawText(TextFormat(" x: %s%f", balls[0].coord.x >= 0 ? " " : "", balls[0].coord.x), 20,           20,  30, BLACK);
 		// DrawText(TextFormat(" y: %s%f", balls[0].coord.y >= 0 ? " " : "", balls[0].coord.y), 20,           50,  30, BLACK);
 		// DrawText(TextFormat("dx: %s%f", balls[0].speed.x >= 0 ? " " : "", balls[0].speed.x), 20,           80,  30, BLACK);
