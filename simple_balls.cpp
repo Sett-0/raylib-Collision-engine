@@ -19,12 +19,12 @@
 #define GRAVITY 1.0f
 #define BALL_DENSITY 0.001f
 #define ITERATIONS 8
-#define SUB_STEP 8
+#define SUB_STEP   8
 #define DELTA_TIME (1.0f / SUB_STEP)
-#define SLOP 0.01f
+#define SLOP   0.01f
 #define K_SLOP 0.6f
 #define RESTITUTION 0.5f
-#define VISCOSITY 0.002f
+#define VISCOSITY   0.002f
 #define RESTING_THRESHOLD ((GRAVITY / SUB_STEP) * 1.5f)
 
 struct BallInitData {
@@ -227,12 +227,6 @@ void onCollision(Ball *b1, Ball *b2) {
 }
 
 void resolveCollisions(CollisionGrid &cGrid) {
-	// Window bounds
-	Vector2 lBound[] = { { 0,     0      }, { 0,     HEIGHT } };
-	Vector2 rBound[] = { { WIDTH, 0      }, { WIDTH, HEIGHT } };
-	Vector2 tBound[] = { { 0,     0      }, { WIDTH, 0      } };
-	Vector2 bBound[] = { { 0,     HEIGHT }, { WIDTH, HEIGHT } };
-	
 	for (size_t iter = 0; iter < ITERATIONS; iter++) {
 		for (size_t x = 0; x < GRIDSIZE_X; x++) {
 			for (size_t y = 0; y < GRIDSIZE_Y; y++) {
@@ -240,34 +234,34 @@ void resolveCollisions(CollisionGrid &cGrid) {
 				for (size_t i = 0; i < bucket.size(); i++) {
 					// Collision type: Ball : lBound
 					if (x == 0) {
-						if (CheckCollisionCircleLine(bucket[i]->coord, bucket[i]->R, lBound[0], lBound[1])) {
+						if (bucket[i]->coord.x - bucket[i]->R < 0.0f) {
 							onCollision(bucket[i], { 0.0f, bucket[i]->coord.y });
 						}
 					}
-
+					
 					// Collision type: Ball : rBound
-					if (x == GRIDSIZE_X-1) {
-						if (CheckCollisionCircleLine(bucket[i]->coord, bucket[i]->R, rBound[0], rBound[1])) {
+					else if (x == GRIDSIZE_X-1) {
+						if (bucket[i]->coord.x + bucket[i]->R > WIDTH) {
 							onCollision(bucket[i], { WIDTH, bucket[i]->coord.y });
 						}
 					}
 					
 					// Collision type: Ball : tBound
 					if (y == 0) {
-						if (CheckCollisionCircleLine(bucket[i]->coord, bucket[i]->R, tBound[0], tBound[1])) {
+						if (bucket[i]->coord.y - bucket[i]->R < 0.0f) {
 							onCollision(bucket[i], { bucket[i]->coord.x, 0.0f });
 						}
 					}
 					
 					// Collision type: Ball : bBound
-					if (y == GRIDSIZE_Y-1) {
-						if (CheckCollisionCircleLine(bucket[i]->coord, bucket[i]->R, bBound[0], bBound[1])) {
+					else if (y == GRIDSIZE_Y-1) {
+						if (bucket[i]->coord.y + bucket[i]->R > HEIGHT) {
 							onCollision(bucket[i], { bucket[i]->coord.x, HEIGHT });
 						}
 					}
 					
+					// Collision type: Ball : Ball
 					if (bucket.size() > 1) {
-						// Collision type: Ball : Ball
 						for (size_t j = i + 1; j < bucket.size(); j++) {
 							if (bucket[i] == bucket[j]) continue;
 							if (CheckCollisionCircles(bucket[i]->coord, bucket[i]->R, bucket[j]->coord, bucket[j]->R)) {
