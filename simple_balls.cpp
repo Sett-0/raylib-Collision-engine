@@ -11,10 +11,10 @@
 #define FPS 60
 #define WIDTH  1600
 #define HEIGHT 800
-#define GRIDWIDTH  (4 * MAX_R)
-#define GRIDHEIGHT (4 * MAX_R)
-#define GRIDSIZE_X (WIDTH  / GRIDWIDTH)
-#define GRIDSIZE_Y (HEIGHT / GRIDHEIGHT)
+#define CELLWIDTH  (4 * MAX_R)
+#define CELLHEIGHT (4 * MAX_R)
+#define GRIDSIZE_X (WIDTH  / CELLWIDTH)
+#define GRIDSIZE_Y (HEIGHT / CELLHEIGHT)
 
 #define GRAVITY 1.0f
 #define BALL_DENSITY 0.001f
@@ -27,10 +27,12 @@
 #define VISCOSITY   0.002f
 #define RESTING_THRESHOLD ((GRAVITY / SUB_STEP) * 1.5f)
 
+// Used to store data for the resetBall feature
 struct BallInitData {
 	Vector2 coord;
 	Vector2 speed;
 	float R;
+	size_t homeCellIndex; 
 	float mass;
 	Color color;
 	bool isImmovable;
@@ -41,29 +43,38 @@ public:
 	Vector2 coord;
 	Vector2 speed;
 	float R;
+	size_t homeCellIndex; 
 	float mass;
 	Color color; 
 	bool isImmovable;
 	bool showParentGridCell;
 
 	Ball(Vector2 cd, Vector2 sp, float r, Color clr, bool immovable=false, bool showCell=false) {
-		R = r;
 		coord = cd;
 		speed = sp;
+		R = r;
+		this->updateHomeCellIndex();
+		mass = isImmovable ? 0.0f : (BALL_DENSITY * PI * r*r);
 		color = clr;
 		isImmovable = immovable;
-		mass = isImmovable ? 0.0f : (BALL_DENSITY * PI * r*r);
 		showParentGridCell = showCell;
-		ball = BallInitData { cd, sp, r, mass, clr, immovable };
+		ball = BallInitData { cd, sp, r, homeCellIndex, mass, clr, immovable };
 	}
 	
 	Ball() = default;
 	
+	void updateHomeCellIndex() {
+		size_t cellX = (size_t)(coord.x / CELLWIDTH);
+		size_t cellY = (size_t)(coord.y / CELLHEIGHT);
+		homeCellIndex = cellY * GRIDSIZE_X + cellX;
+	}
+	
 	void resetBall() {
-		this->R     = ball.R;
-		this->coord = ball.coord;
-		this->speed = ball.speed;
-		this->color = ball.color;
+		this->coord         = ball.coord;
+		this->speed         = ball.speed;
+		this->R             = ball.R;
+		this->homeCellIndex = ball.homeCellIndex;
+		this->color         = ball.color;
 	}
 	
 	void shiftColor() {
@@ -74,6 +85,7 @@ public:
 	}
 
 private:
+	// Used for the resetBall feature
 	BallInitData ball;
 };
 
@@ -81,7 +93,7 @@ struct CollisionGrid {
 	std::vector<Ball*> grid[GRIDSIZE_X][GRIDSIZE_Y];
 	CollisionGrid() {
 		size_t averageR = (MIN_R + MAX_R) / 2;
-		size_t reserveSize = (size_t)((GRIDWIDTH * GRIDHEIGHT) / ((2*averageR) * (2*averageR)));
+		size_t reserveSize = (size_t)((CELLWIDTH * CELLHEIGHT) / ((2*averageR) * (2*averageR)));
 		for (size_t x = 0; x < GRIDSIZE_X; x++)
 			for (size_t y = 0; y < GRIDSIZE_Y; y++)
 				grid[x][y].reserve(reserveSize);
@@ -146,11 +158,12 @@ void clearGrid(CollisionGrid &cGrid) {
 
 void populateGrid(CollisionGrid &cGrid, std::vector<Ball> &balls) {
 	for (Ball &ball : balls) {
-		size_t lCell = (size_t)Clamp((ball.coord.x - ball.R) / GRIDWIDTH,  0, GRIDSIZE_X-1);
-		size_t rCell = (size_t)Clamp((ball.coord.x + ball.R) / GRIDWIDTH,  0, GRIDSIZE_X-1);
-		size_t tCell = (size_t)Clamp((ball.coord.y - ball.R) / GRIDHEIGHT, 0, GRIDSIZE_Y-1);
-		size_t bCell = (size_t)Clamp((ball.coord.y + ball.R) / GRIDHEIGHT, 0, GRIDSIZE_Y-1);
+		size_t lCell = (size_t)Clamp((ball.coord.x - ball.R) / CELLWIDTH,  0, GRIDSIZE_X-1);
+		size_t rCell = (size_t)Clamp((ball.coord.x + ball.R) / CELLWIDTH,  0, GRIDSIZE_X-1);
+		size_t tCell = (size_t)Clamp((ball.coord.y - ball.R) / CELLHEIGHT, 0, GRIDSIZE_Y-1);
+		size_t bCell = (size_t)Clamp((ball.coord.y + ball.R) / CELLHEIGHT, 0, GRIDSIZE_Y-1);
 		
+		ball.updateHomeCellIndex();
 		for (size_t cellX = lCell; cellX <= rCell; cellX++) {
 			for (size_t cellY = tCell; cellY <= bCell; cellY++) {
 				cGrid.grid[cellX][cellY].push_back(&ball);
@@ -231,6 +244,7 @@ void resolveCollisions(CollisionGrid &cGrid) {
 		for (size_t x = 0; x < GRIDSIZE_X; x++) {
 			for (size_t y = 0; y < GRIDSIZE_Y; y++) {
 				auto &bucket = cGrid.grid[x][y];
+				size_t currentCellIndex = y * GRIDSIZE_X + x;
 				for (size_t i = 0; i < bucket.size(); i++) {
 					// Collision type: Ball : lBound
 					if (x == 0) {
@@ -242,7 +256,7 @@ void resolveCollisions(CollisionGrid &cGrid) {
 					// Collision type: Ball : rBound
 					else if (x == GRIDSIZE_X-1) {
 						if (bucket[i]->coord.x + bucket[i]->R > WIDTH) {
-							onCollision(bucket[i], { WIDTH, bucket[i]->coord.y });
+							onCollision(bucket[i], { (float)WIDTH, bucket[i]->coord.y });
 						}
 					}
 					
@@ -256,14 +270,15 @@ void resolveCollisions(CollisionGrid &cGrid) {
 					// Collision type: Ball : bBound
 					else if (y == GRIDSIZE_Y-1) {
 						if (bucket[i]->coord.y + bucket[i]->R > HEIGHT) {
-							onCollision(bucket[i], { bucket[i]->coord.x, HEIGHT });
+							onCollision(bucket[i], { bucket[i]->coord.x, (float)HEIGHT });
 						}
 					}
 					
 					// Collision type: Ball : Ball
 					if (bucket.size() > 1) {
 						for (size_t j = i + 1; j < bucket.size(); j++) {
-							if (bucket[i] == bucket[j]) continue;
+							size_t targetCellIndex = std::min(bucket[i]->homeCellIndex, bucket[j]->homeCellIndex);
+							//if (currentCellIndex != targetCellIndex) continue;
 							if (CheckCollisionCircles(bucket[i]->coord, bucket[i]->R, bucket[j]->coord, bucket[j]->R)) {
 								onCollision(bucket[i], bucket[j]);
 							}
@@ -297,12 +312,12 @@ int main() {
 		// Drawing the collison grid
 		for (size_t x = 1; x <= GRIDSIZE_X; x++) {
 			for (size_t y = 1; y <= GRIDSIZE_Y; y++) {
-				Vector2 rowStart = { 0,     GRIDHEIGHT * (float)y };
-				Vector2 rowEnd   = { WIDTH, GRIDHEIGHT * (float)y };
+				Vector2 rowStart = { 0,     CELLHEIGHT * (float)y };
+				Vector2 rowEnd   = { WIDTH, CELLHEIGHT * (float)y };
 				DrawLineDashed(rowStart, rowEnd, 5, 5, LIGHTGRAY);
 				
-				Vector2 colStart = { GRIDWIDTH * (float)x, 0      };
-				Vector2 colEnd   = { GRIDWIDTH * (float)x, HEIGHT };
+				Vector2 colStart = { CELLWIDTH * (float)x, 0      };
+				Vector2 colEnd   = { CELLWIDTH * (float)x, HEIGHT };
 				DrawLineDashed(colStart, colEnd, 5, 5, LIGHTGRAY);
 			}
 		}
@@ -338,8 +353,8 @@ int main() {
 						const auto &bucket = cGrid.grid[x][y];
 						for (const auto &el : bucket) {
 							if (&ball == el) {
-								int   w = GRIDWIDTH;
-								int   h = GRIDHEIGHT;
+								int   w = CELLWIDTH;
+								int   h = CELLHEIGHT;
 								Color c = (c = ball.color, c.a = 64, c);
 								DrawRectangle(x*w, y*h, w, h, c);
 							}
